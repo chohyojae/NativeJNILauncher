@@ -3,8 +3,11 @@
 
 #include "framework.h"
 #include "NativeJNILauncher.h"
+#include <jni.h>
+#include <string>
 
 #define MAX_LOADSTRING 100
+#define JVM_OPTION_NUM 4
 
 // 전역 변수:
 HINSTANCE hInst;                                // 현재 인스턴스입니다.
@@ -16,44 +19,78 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+JNIEnv* loadJVM(LPWSTR jvmDllLocation);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
                      _In_ LPWSTR    lpCmdLine,
                      _In_ int       nCmdShow)
 {
-    UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(lpCmdLine);
-
-    // TODO: 여기에 코드를 입력합니다.
-
-    // 전역 문자열을 초기화합니다.
-    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDC_NATIVEJNILAUNCHER, szWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);
-
-    // 애플리케이션 초기화를 수행합니다:
-    if (!InitInstance (hInstance, nCmdShow))
-    {
-        return FALSE;
-    }
-
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_NATIVEJNILAUNCHER));
-
-    MSG msg;
-
-    // 기본 메시지 루프입니다:
-    while (GetMessage(&msg, nullptr, 0, 0))
-    {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-    }
-
-    return (int) msg.wParam;
+    JNI env = new JNI();
 }
+
+JNIEnv* loadJVM(std::string jvmLocation, std::string )
+{
+    JavaVMInitArgs vmArgs;
+
+    vmArgs.version = JNI_VERSION_1_8;
+    vmArgs.nOptions = JVM_OPTION_NUM;
+    vmArgs.ignoreUnrecognized = JNI_FALSE;
+    vmArgs.options = new JavaVMOption[JVM_OPTION_NUM];
+
+    char* tmp;
+
+	tmp = new char[16];
+    strcpy_s(tmp, 16, "-Xms512M");
+    vmArgs.options[0].optionString = tmp;
+
+    tmp = new char[16];
+    strcpy_s(tmp, 16, "-Xmx768M");
+    vmArgs.options[1].optionString = tmp;
+
+    tmp = new char[32];
+    strcpy_s(tmp, 32, "-Dfile.encoding=UTF-8");
+    vmArgs.options[2].optionString = tmp;
+
+}
+
+// int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
+//                      _In_opt_ HINSTANCE hPrevInstance,
+//                      _In_ LPWSTR    lpCmdLine,
+//                      _In_ int       nCmdShow)
+// {
+//     UNREFERENCED_PARAMETER(hPrevInstance);
+//     UNREFERENCED_PARAMETER(lpCmdLine);
+//
+//     // TODO: 여기에 코드를 입력합니다.
+//
+//     // 전역 문자열을 초기화합니다.
+//     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+//     LoadStringW(hInstance, IDC_NATIVEJNILAUNCHER, szWindowClass, MAX_LOADSTRING);
+//     MyRegisterClass(hInstance);
+//
+//     // 애플리케이션 초기화를 수행합니다:
+//     if (!InitInstance (hInstance, nCmdShow))
+//     {
+//         return FALSE;
+//     }
+//
+//     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_NATIVEJNILAUNCHER));
+//
+//     MSG msg;
+//
+//     // 기본 메시지 루프입니다:
+//     while (GetMessage(&msg, nullptr, 0, 0))
+//     {
+//         if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+//         {
+//             TranslateMessage(&msg);
+//             DispatchMessage(&msg);
+//         }
+//     }
+//
+//     return (int) msg.wParam;
+// }
 
 
 
