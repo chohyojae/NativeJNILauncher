@@ -13,8 +13,7 @@
 #include <shellapi.h>
 #include <filesystem>
 
-typedef JNIIMPORT jint (JNICALL* Func_CreateJavaVM)(JavaVM** pvm, void** env, void* args);
-
+typedef JNIIMPORT jint (JNICALL* Func_CreateJavaVM)(JavaVM** pvm, JNIEnv** env, void* args);
 
 constexpr auto MAX_LOADSTRING = 100;
 constexpr auto JVM_OPTION_NUM = 4;
@@ -27,18 +26,13 @@ WCHAR szTitle[MAX_LOADSTRING];                  // 제목 표시줄 텍스트입
 WCHAR szWindowClass[MAX_LOADSTRING];            // 기본 창 클래스 이름입니다.
 
 // 이 코드 모듈에 포함된 함수의 선언을 전달합니다:
-ATOM                MyRegisterClass(HINSTANCE hInstance);
-BOOL                InitInstance(HINSTANCE, int);
-LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-
-#ifdef DEBUG
-void CreateConsole();
-#endif
 jobjectArray makeJavaMainArgs(JNIEnv* jniEnv);
 std::string findJvmDllLocation(std::string currentDir);
 std::vector<std::string> traversalLibs(std::string libDir);
 JNIEnv* makeArgsAndCreateJavaVM(std::vector<std::string> libList, std::string jvmLocation);
+#ifdef DEBUG
+void CreateConsole();
+#endif
 
 JavaVM* javaVM = nullptr;
 
@@ -71,10 +65,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     //ClassPath(lib/*.jar) 목록 생성
     const std::string libDir = currentDir + "/lib";
-    std::vector<std::string> libList = traversalLibs(libDir);
+    const std::vector<std::string> libList = traversalLibs(libDir);
 
 #ifdef DEBUG
-
     std::cout << "libDir: " << libDir << std::endl;
     std::cout << "libList: " << std::endl;
     for (std::string lib : libList)
@@ -94,8 +87,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     
 
     //메인클래스 탐색
-    std::string mainClassName = "Test/Main";
-    jclass mainClass = jniEnv->FindClass(mainClassName.c_str());
+    const std::string mainClassName = "Test/Main";
+    const jclass mainClass = jniEnv->FindClass(mainClassName.c_str());
     if (mainClass == nullptr) 
     {
         jniEnv->ExceptionDescribe();
@@ -105,7 +98,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     }
 
     //메인 메소드 탐색
-    jmethodID mainMethod = jniEnv->GetStaticMethodID(mainClass, "main", "([Ljava/lang/String;)V");
+    const jmethodID mainMethod = jniEnv->GetStaticMethodID(mainClass, "main", "([Ljava/lang/String;)V");
     
     if(mainMethod == nullptr)
     {
@@ -113,7 +106,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return 3;
     }
     //메인 메소드 실행
-    jobjectArray args = makeJavaMainArgs(jniEnv);
+    const jobjectArray args = makeJavaMainArgs(jniEnv);
 	jniEnv->CallStaticVoidMethod(mainClass, mainMethod, args);
     
     if(jniEnv->ExceptionOccurred())
@@ -121,7 +114,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         std::cout << "Error occurred while invoking the main method..." << std::endl;
     }
 
+#ifdef DEBUG
     std::cout << "main method is called" << std::endl;
+#endif
 
     //while (true) { Sleep(1000); };
 
@@ -134,7 +129,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #ifdef DEBUG
 void CreateConsole()
 {
-    // i borrowed this function from https://stackoverflow.com/questions/57210117/unable-to-write-to-allocconsole
+    // I borrowed this function from https://stackoverflow.com/questions/57210117/unable-to-write-to-allocconsole
 
     if (!AllocConsole()) {
         return;
@@ -143,7 +138,7 @@ void CreateConsole()
     std::cout << "Console is allocated" << std::endl;
 
     // std::cout, std::clog, std::cerr, std::cin
-    FILE* fDummy;
+    FILE* fDummy = nullptr;
     freopen_s(&fDummy, "CONOUT$", "w", stdout);
     freopen_s(&fDummy, "CONOUT$", "w", stderr);
     freopen_s(&fDummy, "CONIN$", "r", stdin);
@@ -169,8 +164,10 @@ jobjectArray makeJavaMainArgs(JNIEnv* jniEnv)
 {
     //Windows 제공 argument 파서는 Wide char 기준으로 제공됨.
 
-    LPWSTR argWstr = GetCommandLineW();
+    const LPWSTR argWstr = GetCommandLineW();
+#ifdef DEBUG
     std::wcout << L"command Line argument:" << argWstr << std::endl;
+#endif
 
     jclass stringClass = jniEnv->FindClass("java/lang/String");
     jobjectArray args = nullptr;
@@ -179,7 +176,11 @@ jobjectArray makeJavaMainArgs(JNIEnv* jniEnv)
     {
         int argc = 0;
         const LPWSTR* argvArray = CommandLineToArgvW(argWstr, &argc);
+
+#ifdef DEBUG
         std::cout << "argc: " << argc << std::endl;
+#endif
+
         if (argc > 1)
         {
             //자바 String클래스 정의 및 args 배열 생성.
@@ -188,13 +189,12 @@ jobjectArray makeJavaMainArgs(JNIEnv* jniEnv)
 
             for (int i = 1; i < argc; i++)
             {
+#ifdef DEBUG
                 std::wcout << L"argv[" << i << L"]: " << argvArray[i] << std::endl;
-
+#endif
                 const size_t argLen = wcslen(argvArray[i]);
                 jstring jArg = jniEnv->NewString(reinterpret_cast<jchar*>(argvArray[i]), argLen);
 
-                /*WideCharToMultiByte(CP_UTF8, 0, argvArray[i], argLen, buf, MAX_PATH, NULL, NULL);
-                jstring jArg = jniEnv->NewStringUTF(buf);*/
                 jniEnv->SetObjectArrayElement(args, i - 1, jArg);
             }
         }
@@ -208,19 +208,19 @@ jobjectArray makeJavaMainArgs(JNIEnv* jniEnv)
     return args;    
 }
 
-std::string findJvmDllLocation(std::string currentDir) {
+std::string findJvmDllLocation(const std::string currentDir) {
 
     BOOL found = FALSE;
-	const std::vector<std::string> candidates = { "jre8\\bin\\server\\jvm.dll", "jre8\\bin\\client\\jvm.dll",
-        "jdk6\\bin\\client\\jvm.dll" };
+	const std::vector<std::string> candidates = { R"(jre8\bin\server\jvm.dll)", R"(jre8\bin\client\jvm.dll)",
+        R"(jdk6\bin\client\jvm.dll)" };
 
-    std::filesystem::path currentDirPath = std::filesystem::path(currentDir);
+    const std::filesystem::path currentDirPath = std::filesystem::path(currentDir);
     std::filesystem::path jvmDllLocation;
 
     
-    for (unsigned int i = 0; i < candidates.size(); i++)
+    for (const auto& candidate : candidates)
     {
-        std::filesystem::path tmpLocation = currentDirPath / candidates[i];
+        std::filesystem::path tmpLocation = currentDirPath / candidate;
         if(std::filesystem::exists(tmpLocation))
         {
             //존재하면 바로 리턴.
@@ -237,7 +237,7 @@ std::string findJvmDllLocation(std::string currentDir) {
 
     if(found)
     {
-        std::string retString = jvmDllLocation.string();
+        const std::string retString = jvmDllLocation.string();
         return retString;
     }
     else
@@ -282,12 +282,9 @@ JNIEnv* makeArgsAndCreateJavaVM(std::vector<std::string> libList, std::string jv
     options[2].optionString = const_cast<char*>("-Dfile.encoding=UTF-8");
 
     std::string combinedJarPaths = "-Djava.class.path=.;";
-    for(unsigned int i=0; i < libList.size(); i++)
+    for (auto& i : libList)
     {
-        //combinedJarPaths += "\"";
-    	combinedJarPaths += ";";
-        combinedJarPaths += libList[i];
-        //combinedJarPaths += "\"";
+        combinedJarPaths += ";" + i;
     }
     
     options[3].optionString = const_cast<char*>(combinedJarPaths.c_str());
@@ -301,10 +298,10 @@ JNIEnv* makeArgsAndCreateJavaVM(std::vector<std::string> libList, std::string jv
         std::cout << "Error loading jvm.dll. Exit...n" << std::endl;
         return nullptr;
     }
-    Func_CreateJavaVM createJavaVm = (Func_CreateJavaVM)(GetProcAddress(dllModule, "JNI_CreateJavaVM"));
+    const Func_CreateJavaVM createJavaVm = reinterpret_cast<Func_CreateJavaVM>(GetProcAddress(dllModule, "JNI_CreateJavaVM"));
 
     JNIEnv* jniEnv = nullptr;
-    jint ret = createJavaVm(&javaVM, (void**)&jniEnv, &vmArgs);
+    jint ret = createJavaVm(&javaVM, &jniEnv, &vmArgs);
 
     if (ret == JNI_ERR) {
         std::cout << "Error creating VM. Exit...n" << std::endl;
@@ -312,165 +309,3 @@ JNIEnv* makeArgsAndCreateJavaVM(std::vector<std::string> libList, std::string jv
     }
     return jniEnv;
 }
-
-// int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-//                      _In_opt_ HINSTANCE hPrevInstance,
-//                      _In_ LPWSTR    lpCmdLine,
-//                      _In_ int       nCmdShow)
-// {
-//     UNREFERENCED_PARAMETER(hPrevInstance);
-//     UNREFERENCED_PARAMETER(lpCmdLine);
-//
-//     // TODO: 여기에 코드를 입력합니다.
-//
-//     // 전역 문자열을 초기화합니다.
-//     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-//     LoadStringW(hInstance, IDC_NATIVEJNILAUNCHER, szWindowClass, MAX_LOADSTRING);
-//     MyRegisterClass(hInstance);
-//
-//     // 애플리케이션 초기화를 수행합니다:
-//     if (!InitInstance (hInstance, nCmdShow))
-//     {
-//         return FALSE;
-//     }
-//
-//     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_NATIVEJNILAUNCHER));
-//
-//     MSG msg;
-//
-//     // 기본 메시지 루프입니다:
-//     while (GetMessage(&msg, nullptr, 0, 0))
-//     {
-//         if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-//         {
-//             TranslateMessage(&msg);
-//             DispatchMessage(&msg);
-//         }
-//     }
-//
-//     return (int) msg.wParam;
-// }
-
-
-
-////
-////  함수: MyRegisterClass()
-////
-////  용도: 창 클래스를 등록합니다.
-////
-//ATOM MyRegisterClass(HINSTANCE hInstance)
-//{
-//    WNDCLASSEXW wcex;
-//
-//    wcex.cbSize = sizeof(WNDCLASSEX);
-//
-//    wcex.style          = CS_HREDRAW | CS_VREDRAW;
-//    wcex.lpfnWndProc    = WndProc;
-//    wcex.cbClsExtra     = 0;
-//    wcex.cbWndExtra     = 0;
-//    wcex.hInstance      = hInstance;
-//    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_NATIVEJNILAUNCHER));
-//    wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-//    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-//    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_NATIVEJNILAUNCHER);
-//    wcex.lpszClassName  = szWindowClass;
-//    wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
-//
-//    return RegisterClassExW(&wcex);
-//}
-//
-////
-////   함수: InitInstance(HINSTANCE, int)
-////
-////   용도: 인스턴스 핸들을 저장하고 주 창을 만듭니다.
-////
-////   주석:
-////
-////        이 함수를 통해 인스턴스 핸들을 전역 변수에 저장하고
-////        주 프로그램 창을 만든 다음 표시합니다.
-////
-//BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
-//{
-//   hInst = hInstance; // 인스턴스 핸들을 전역 변수에 저장합니다.
-//
-//   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-//      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
-//
-//   if (!hWnd)
-//   {
-//      return FALSE;
-//   }
-//
-//   ShowWindow(hWnd, nCmdShow);
-//   UpdateWindow(hWnd);
-//
-//   return TRUE;
-//}
-//
-////
-////  함수: WndProc(HWND, UINT, WPARAM, LPARAM)
-////
-////  용도: 주 창의 메시지를 처리합니다.
-////
-////  WM_COMMAND  - 애플리케이션 메뉴를 처리합니다.
-////  WM_PAINT    - 주 창을 그립니다.
-////  WM_DESTROY  - 종료 메시지를 게시하고 반환합니다.
-////
-////
-//LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-//{
-//    switch (message)
-//    {
-//    case WM_COMMAND:
-//        {
-//            int wmId = LOWORD(wParam);
-//            // 메뉴 선택을 구문 분석합니다:
-//            switch (wmId)
-//            {
-//            case IDM_ABOUT:
-//                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-//                break;
-//            case IDM_EXIT:
-//                DestroyWindow(hWnd);
-//                break;
-//            default:
-//                return DefWindowProc(hWnd, message, wParam, lParam);
-//            }
-//        }
-//        break;
-//    case WM_PAINT:
-//        {
-//            PAINTSTRUCT ps;
-//            HDC hdc = BeginPaint(hWnd, &ps);
-//            // TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다...
-//            EndPaint(hWnd, &ps);
-//        }
-//        break;
-//    case WM_DESTROY:
-//        PostQuitMessage(0);
-//        break;
-//    default:
-//        return DefWindowProc(hWnd, message, wParam, lParam);
-//    }
-//    return 0;
-//}
-//
-//// 정보 대화 상자의 메시지 처리기입니다.
-//INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
-//{
-//    UNREFERENCED_PARAMETER(lParam);
-//    switch (message)
-//    {
-//    case WM_INITDIALOG:
-//        return (INT_PTR)TRUE;
-//
-//    case WM_COMMAND:
-//        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-//        {
-//            EndDialog(hDlg, LOWORD(wParam));
-//            return (INT_PTR)TRUE;
-//        }
-//        break;
-//    }
-//    return (INT_PTR)FALSE;
-//}
